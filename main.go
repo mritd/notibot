@@ -23,6 +23,10 @@ var rootCmd = &cobra.Command{
 		signalCtx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 		defer cancel()
 
+		logrus.Info("NotiBot Starting...")
+		logrus.Infof("NotiBot API Token: %s", token)
+		logrus.Infof("NotiBot Recipient: %v", recipient)
+
 		bot, err := NewTelegram(botApi, botToken)
 		if err != nil {
 			logrus.Fatalf("failed to create telegram bot: %v", err)
@@ -46,7 +50,7 @@ var rootCmd = &cobra.Command{
 			app.Post("/message", func(ctx *fiber.Ctx) error {
 				for _, r := range recipient {
 					var err error
-					if ctx.FormValue("markdown") != "true" {
+					if ctx.FormValue("markdown") == "true" {
 						err = bot.SendMessage(ctx.FormValue("message"), r, true)
 					} else {
 						err = bot.SendMessage(ctx.FormValue("message"), r, false)
@@ -101,10 +105,6 @@ var rootCmd = &cobra.Command{
 				logrus.Fatal(err)
 			}
 		}()
-
-		logrus.Info("NotiBot Starting...")
-		logrus.Infof("NotiBot API Token: %s", token)
-		logrus.Infof("NotiBot Recipient: %v", recipient)
 
 		<-signalCtx.Done()
 
