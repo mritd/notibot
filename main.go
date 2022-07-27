@@ -36,6 +36,13 @@ var rootCmd = &cobra.Command{
 		})
 
 		go func() {
+			app.Use(func(ctx *fiber.Ctx) error {
+				if token != ctx.Get("X-Auth") {
+					ctx.Status(fiber.StatusForbidden)
+					return ctx.Send([]byte("403 Forbidden"))
+				}
+				return ctx.Next()
+			})
 			app.Post("/message", func(ctx *fiber.Ctx) error {
 				for _, r := range recipient {
 					var err error
@@ -118,7 +125,6 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&botApi, "bot-api", "a", "https://api.telegram.org", "Telegram API Address")
 	rootCmd.PersistentFlags().StringVarP(&botToken, "bot-token", "s", "", "Telegram Bot Token")
 	rootCmd.PersistentFlags().Int64SliceVarP(&recipient, "recipient", "r", []int64{}, "Telegram Message Recipient")
-	_ = rootCmd.MarkPersistentFlagRequired("bot-api")
 	_ = rootCmd.MarkPersistentFlagRequired("bot-token")
 	_ = rootCmd.MarkPersistentFlagRequired("recipient")
 }

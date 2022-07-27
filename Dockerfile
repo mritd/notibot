@@ -5,6 +5,7 @@ COPY . /go/src/github.com/mritd/notibot
 WORKDIR /go/src/github.com/mritd/notibot
 
 RUN set -ex \
+    && apk add gcc musl-dev \
     && go install -trimpath -ldflags "-w -s"
 
 FROM alpine
@@ -32,6 +33,6 @@ COPY --from=builder /go/bin/notibot /usr/local/bin/notibot
 
 EXPOSE 8080
 
-ENTRYPOINT ["notibot"]
+ENTRYPOINT ["bash", "-c"]
 
-CMD ["--help"]
+CMD ["notibot --token ${NOTI_TOKEN} --bot-api ${TELEGRAM_API} --bot-token ${TELEGRAM_TOKEN} --recipient ${TELEGRAM_RECIPIENT}"]
