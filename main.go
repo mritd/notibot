@@ -40,36 +40,42 @@ var rootCmd = &cobra.Command{
 		})
 
 		go func() {
-			app.Use(func(ctx *fiber.Ctx) error {
-				if token != ctx.Get("X-Auth") {
-					ctx.Status(fiber.StatusForbidden)
-					return ctx.Send([]byte("403 Forbidden"))
+			app.Use(func(c *fiber.Ctx) error {
+				if token != c.Get("X-Auth") {
+					c.Status(fiber.StatusForbidden)
+					return c.Send([]byte("403 Forbidden"))
 				}
-				return ctx.Next()
+				return c.Next()
 			})
-			app.Post("/message", func(ctx *fiber.Ctx) error {
+			app.Post("/message", func(c *fiber.Ctx) error {
 				for _, r := range recipient {
 					var err error
-					if ctx.FormValue("markdown") == "true" {
-						err = bot.SendMessage(ctx.FormValue("message"), r, true)
+					if c.FormValue("markdown") == "true" {
+						err = bot.SendMessage(c.FormValue("message"), r, true)
 					} else {
-						err = bot.SendMessage(ctx.FormValue("message"), r, false)
+						err = bot.SendMessage(c.FormValue("message"), r, false)
 					}
 					if err != nil {
 						logrus.Errorf("failed to send: [%d] %v", r, err)
+						c.Status(fiber.StatusInternalServerError)
+						_ = c.Send([]byte(err.Error()))
 					}
 				}
 				return nil
 			})
-			app.Post("/file", func(ctx *fiber.Ctx) error {
-				fh, err := ctx.FormFile("file")
+			app.Post("/file", func(c *fiber.Ctx) error {
+				fh, err := c.FormFile("file")
 				if err != nil {
 					logrus.Errorf("failed to get file from request: %v", err)
+					c.Status(fiber.StatusBadRequest)
+					_ = c.Send([]byte(err.Error()))
 					return err
 				}
 				f, err := fh.Open()
 				if err != nil {
 					logrus.Errorf("failed to get file from request: %v", err)
+					c.Status(fiber.StatusInternalServerError)
+					_ = c.Send([]byte(err.Error()))
 					return err
 				}
 				defer func() { _ = f.Close() }()
@@ -77,19 +83,25 @@ var rootCmd = &cobra.Command{
 					err = bot.SendFile(f, fh.Filename, utils.GetMIME(fh.Filename), "", r)
 					if err != nil {
 						logrus.Errorf("failed to send: [%d] %v", r, err)
+						c.Status(fiber.StatusInternalServerError)
+						_ = c.Send([]byte(err.Error()))
 					}
 				}
 				return nil
 			})
-			app.Post("/image", func(ctx *fiber.Ctx) error {
-				fh, err := ctx.FormFile("image")
+			app.Post("/image", func(c *fiber.Ctx) error {
+				fh, err := c.FormFile("image")
 				if err != nil {
 					logrus.Errorf("failed to get image from request: %v", err)
+					c.Status(fiber.StatusBadRequest)
+					_ = c.Send([]byte(err.Error()))
 					return err
 				}
 				f, err := fh.Open()
 				if err != nil {
 					logrus.Errorf("failed to get image from request: %v", err)
+					c.Status(fiber.StatusInternalServerError)
+					_ = c.Send([]byte(err.Error()))
 					return err
 				}
 				defer func() { _ = f.Close() }()
@@ -97,6 +109,8 @@ var rootCmd = &cobra.Command{
 					err = bot.SendImage(f, "", r)
 					if err != nil {
 						logrus.Errorf("failed to send: [%d] %v", r, err)
+						c.Status(fiber.StatusInternalServerError)
+						_ = c.Send([]byte(err.Error()))
 					}
 				}
 				return nil
