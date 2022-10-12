@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/basicauth"
 	"github.com/gofiber/fiber/v2/utils"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -11,7 +12,8 @@ import (
 )
 
 var addr string
-var token string
+var username string
+var password string
 var botApi string
 var botToken string
 var recipient []int64
@@ -24,7 +26,8 @@ var rootCmd = &cobra.Command{
 		defer cancel()
 
 		logrus.Info("NotiBot Starting...")
-		logrus.Infof("NotiBot API Token: %s", token)
+		logrus.Infof("NotiBot API User: %s", username)
+		logrus.Infof("NotiBot API Password: %s", password)
 		logrus.Infof("NotiBot Recipient: %v", recipient)
 
 		bot, err := NewTelegram(botApi, botToken)
@@ -40,13 +43,11 @@ var rootCmd = &cobra.Command{
 		})
 
 		go func() {
-			app.Use(func(c *fiber.Ctx) error {
-				if token != c.Get("X-Auth") {
-					c.Status(fiber.StatusForbidden)
-					return c.Send([]byte("403 Forbidden"))
-				}
-				return c.Next()
-			})
+			app.Use(basicauth.New(basicauth.Config{
+				Users: map[string]string{
+					username: password,
+				},
+			}))
 			app.Post("/message", func(c *fiber.Ctx) error {
 				for _, r := range recipient {
 					var err error
@@ -135,7 +136,8 @@ func init() {
 	})
 
 	rootCmd.PersistentFlags().StringVarP(&addr, "listen", "l", "0.0.0.0:8080", "Server Listen Address")
-	rootCmd.PersistentFlags().StringVarP(&token, "token", "t", RandomString(32), "Server API Token")
+	rootCmd.PersistentFlags().StringVarP(&username, "username", "u", "noti", "Server API Auth User")
+	rootCmd.PersistentFlags().StringVarP(&password, "password", "p", RandomString(16), "Server API Auth Password")
 	rootCmd.PersistentFlags().StringVarP(&botApi, "bot-api", "a", "https://api.telegram.org", "Telegram API Address")
 	rootCmd.PersistentFlags().StringVarP(&botToken, "bot-token", "s", "", "Telegram Bot Token")
 	rootCmd.PersistentFlags().Int64SliceVarP(&recipient, "recipient", "r", []int64{}, "Telegram Message Recipient")
