@@ -35,4 +35,4 @@ EXPOSE 8080
 
 ENTRYPOINT ["bash", "-c"]
 
-CMD ["notibot --username ${NOTI_USERNAME} --password ${NOTI_PASSWORD} --bot-api ${TELEGRAM_API} --bot-token ${TELEGRAM_TOKEN} --recipient ${TELEGRAM_RECIPIENT}"]
+CMD ["notibot --auth-mode ${NOTI_AUTH_MODE} --access-token ${NOTI_ACCESS_TOKEN} --username ${NOTI_USERNAME} --password ${NOTI_PASSWORD} --bot-api ${TELEGRAM_API} --bot-token ${TELEGRAM_TOKEN} --recipient ${TELEGRAM_RECIPIENT}"]

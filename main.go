@@ -12,6 +12,8 @@ import (
 )
 
 var addr string
+var authMode string
+var accessToken string
 var username string
 var password string
 var botApi string
@@ -43,11 +45,25 @@ var rootCmd = &cobra.Command{
 		})
 
 		go func() {
-			app.Use(basicauth.New(basicauth.Config{
-				Users: map[string]string{
-					username: password,
-				},
-			}))
+			switch authMode {
+			case "none":
+			case "user-password":
+				app.Use(basicauth.New(basicauth.Config{
+					Users: map[string]string{
+						username: password,
+					},
+				}))
+			case "access-token":
+				app.Use(func(c *fiber.Ctx) error {
+					if accessToken != c.Get("X-Auth") {
+						c.Status(fiber.StatusForbidden)
+						return c.Send([]byte("403 Forbidden"))
+					}
+					return c.Next()
+				})
+			default:
+				logrus.Fatalf("unsupported auth mode: %v", authMode)
+			}
 			app.Post("/message", func(c *fiber.Ctx) error {
 				for _, r := range recipient {
 					var err error
@@ -136,8 +152,10 @@ func init() {
 	})
 
 	rootCmd.PersistentFlags().StringVarP(&addr, "listen", "l", "0.0.0.0:8080", "Server Listen Address")
+	rootCmd.PersistentFlags().StringVarP(&authMode, "auth-mode", "m", "access-token", "Server API Mode(access-token/user-password/none)")
 	rootCmd.PersistentFlags().StringVarP(&username, "username", "u", "noti", "Server API Auth User")
 	rootCmd.PersistentFlags().StringVarP(&password, "password", "p", RandomString(16), "Server API Auth Password")
+	rootCmd.PersistentFlags().StringVarP(&accessToken, "access-token", "t", RandomString(32), "Server API Auth AccessToken")
 	rootCmd.PersistentFlags().StringVarP(&botApi, "bot-api", "a", "https://api.telegram.org", "Telegram API Address")
 	rootCmd.PersistentFlags().StringVarP(&botToken, "bot-token", "s", "", "Telegram Bot Token")
 	rootCmd.PersistentFlags().Int64SliceVarP(&recipient, "recipient", "r", []int64{}, "Telegram Message Recipient")
