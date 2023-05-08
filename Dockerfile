@@ -11,6 +11,9 @@ RUN set -ex \
 FROM alpine
 
 LABEL maintainer="mritd <mritd@linux.com>"
+LABEL org.opencontainers.image.source="https://github.com/mritd/notibot"
+LABEL org.opencontainers.image.description="Telegram Notification Bot"
+LABEL org.opencontainers.image.licenses="Apache-2.0"
 
 # set up nsswitch.conf for Go's "netgo" implementation
 # - https://github.com/golang/go/blob/go1.9.1/src/net/conf.go#L194-L275
