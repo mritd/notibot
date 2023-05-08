@@ -5,9 +5,13 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/basicauth"
 	"github.com/gofiber/fiber/v2/utils"
+	_ "github.com/mritd/logrus"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 )
 
@@ -145,11 +149,25 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	logrus.SetLevel(logrus.InfoLevel)
-	logrus.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp:   true,
-		TimestampFormat: "2006-01-02 15:04:05",
-	})
+
+	addr = os.Getenv("NOTI_LISTEN_ADDR")
+	authMode = os.Getenv("NOTI_AUTH_MODE")
+	username = os.Getenv("NOTI_AUTH_USERNAME")
+	password = os.Getenv("NOTI_AUTH_PASSWORD")
+	accessToken = os.Getenv("NOTI_AUTH_ACCESS_TOKEN")
+	botApi = os.Getenv("TELEGRAM_BOT_API")
+	botToken = os.Getenv("TELEGRAM_BOT_TOKEN")
+	recipientStr := os.Getenv("TELEGRAM_RECIPIENT")
+	if recipientStr != "" {
+		recipientSlice := strings.Split(recipientStr, ",")
+		for _, i := range recipientSlice {
+			id, err := strconv.ParseInt(i, 10, 64)
+			if err != nil {
+				logrus.Fatalf("failed to parse recipient: %v", err)
+			}
+			recipient = append(recipient, id)
+		}
+	}
 
 	rootCmd.PersistentFlags().StringVarP(&addr, "listen", "l", "0.0.0.0:8080", "Server Listen Address")
 	rootCmd.PersistentFlags().StringVarP(&authMode, "auth-mode", "m", "access-token", "Server API Mode(access-token/user-password/none)")
@@ -159,8 +177,6 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&botApi, "bot-api", "a", "https://api.telegram.org", "Telegram API Address")
 	rootCmd.PersistentFlags().StringVarP(&botToken, "bot-token", "s", "", "Telegram Bot Token")
 	rootCmd.PersistentFlags().Int64SliceVarP(&recipient, "recipient", "r", []int64{}, "Telegram Message Recipient")
-	_ = rootCmd.MarkPersistentFlagRequired("bot-token")
-	_ = rootCmd.MarkPersistentFlagRequired("recipient")
 }
 
 func main() {
