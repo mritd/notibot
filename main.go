@@ -8,21 +8,12 @@ import (
 	_ "github.com/mritd/logrus"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"os"
+	"github.com/spf13/viper"
 	"os/signal"
 	"strconv"
 	"strings"
 	"syscall"
 )
-
-var addr string
-var authMode string
-var accessToken string
-var username string
-var password string
-var botApi string
-var botToken string
-var recipient []int64
 
 var rootCmd = &cobra.Command{
 	Use:   "notibot",
@@ -32,11 +23,26 @@ var rootCmd = &cobra.Command{
 		defer cancel()
 
 		logrus.Info("NotiBot Starting...")
-		logrus.Infof("NotiBot API User: %s", username)
-		logrus.Infof("NotiBot API Password: %s", password)
-		logrus.Infof("NotiBot Recipient: %v", recipient)
+		logrus.Infof("NotiBot Auth Mode: %s", viper.GetString("auth-mode"))
+		logrus.Infof("NotiBot API User: %s", viper.GetString("username"))
+		logrus.Infof("NotiBot API Password: %s", viper.GetString("password"))
+		logrus.Infof("NotiBot API Access Token: %s", viper.GetString("access-token"))
+		logrus.Infof("NotiBot Telegram Recipient: %v", viper.GetString("recipient"))
 
-		bot, err := NewTelegram(botApi, botToken)
+		var recipient []int64
+		if viper.GetString("recipient") == "" {
+			logrus.Fatal("telegram recipient cannot be empty")
+		}
+		ss := strings.Split(viper.GetString("recipient"), ",")
+		for _, s := range ss {
+			id, err := strconv.ParseInt(s, 10, 64)
+			if err != nil {
+				logrus.Fatalf("failed to parse recipient: %v", err)
+			}
+			recipient = append(recipient, id)
+		}
+
+		bot, err := NewTelegram(viper.GetString("bot-api"), viper.GetString("bot-token"))
 		if err != nil {
 			logrus.Fatalf("failed to create telegram bot: %v", err)
 		}
@@ -49,24 +55,24 @@ var rootCmd = &cobra.Command{
 		})
 
 		go func() {
-			switch authMode {
+			switch viper.GetString("auth-mode") {
 			case "none":
 			case "user-password":
 				app.Use(basicauth.New(basicauth.Config{
 					Users: map[string]string{
-						username: password,
+						viper.GetString("username"): viper.GetString("password"),
 					},
 				}))
-			case "access-token":
+			case "token", "access-token":
 				app.Use(func(c *fiber.Ctx) error {
-					if accessToken != c.Get("X-Auth") {
+					if viper.GetString("access-token") != c.Get("X-Auth") {
 						c.Status(fiber.StatusForbidden)
 						return c.Send([]byte("403 Forbidden"))
 					}
 					return c.Next()
 				})
 			default:
-				logrus.Fatalf("unsupported auth mode: %v", authMode)
+				logrus.Fatalf("unsupported auth mode: %v", viper.GetString("auth-mode"))
 			}
 			app.Post("/message", func(c *fiber.Ctx) error {
 				for _, r := range recipient {
@@ -136,7 +142,7 @@ var rootCmd = &cobra.Command{
 				}
 				return nil
 			})
-			if err := app.Listen(addr); err != nil {
+			if err := app.Listen(viper.GetString("listen")); err != nil {
 				logrus.Fatal(err)
 			}
 		}()
@@ -149,34 +155,37 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
+	rootCmd.PersistentFlags().StringP("listen", "l", "", "Server Listen Address")
+	rootCmd.PersistentFlags().StringP("auth-mode", "m", "", "Server API Mode(access-token/user-password/none)")
+	rootCmd.PersistentFlags().StringP("username", "u", "", "Server API Auth User")
+	rootCmd.PersistentFlags().StringP("password", "p", "", "Server API Auth Password")
+	rootCmd.PersistentFlags().StringP("access-token", "t", "", "Server API Auth AccessToken")
+	rootCmd.PersistentFlags().StringP("bot-api", "a", "https://api.telegram.org", "Telegram API Address")
+	rootCmd.PersistentFlags().StringP("bot-token", "s", "", "Telegram Bot Token")
+	rootCmd.PersistentFlags().StringP("recipient", "r", "", "Telegram Message Recipient")
 
-	addr = os.Getenv("NOTI_LISTEN_ADDR")
-	authMode = os.Getenv("NOTI_AUTH_MODE")
-	username = os.Getenv("NOTI_AUTH_USERNAME")
-	password = os.Getenv("NOTI_AUTH_PASSWORD")
-	accessToken = os.Getenv("NOTI_AUTH_ACCESS_TOKEN")
-	botApi = os.Getenv("TELEGRAM_BOT_API")
-	botToken = os.Getenv("TELEGRAM_BOT_TOKEN")
-	recipientStr := os.Getenv("TELEGRAM_RECIPIENT")
-	if recipientStr != "" {
-		recipientSlice := strings.Split(recipientStr, ",")
-		for _, i := range recipientSlice {
-			id, err := strconv.ParseInt(i, 10, 64)
-			if err != nil {
-				logrus.Fatalf("failed to parse recipient: %v", err)
-			}
-			recipient = append(recipient, id)
-		}
+	_ = viper.BindEnv("listen", "NOTI_LISTEN_ADDR", "NOTI_LISTEN")
+	_ = viper.BindEnv("auth-mode", "NOTI_AUTH_MODE")
+	_ = viper.BindEnv("username", "NOTI_AUTH_USERNAME", "NOTI_USERNAME")
+	_ = viper.BindEnv("password", "NOTI_AUTH_PASSWORD", "NOTI_PASSWORD")
+	_ = viper.BindEnv("access-token", "NOTI_AUTH_TOKEN", "NOTI_TOKEN")
+	_ = viper.BindEnv("bot-api", "NOTI_TELEGRAM_API")
+	_ = viper.BindEnv("bot-token", "NOTI_TELEGRAM_TOKEN")
+	_ = viper.BindEnv("recipient", "NOTI_TELEGRAM_RECIPIENT")
+
+	if err := viper.BindPFlags(rootCmd.PersistentFlags()); err != nil {
+		logrus.Fatal(err)
 	}
 
-	rootCmd.PersistentFlags().StringVarP(&addr, "listen", "l", "0.0.0.0:8080", "Server Listen Address")
-	rootCmd.PersistentFlags().StringVarP(&authMode, "auth-mode", "m", "access-token", "Server API Mode(access-token/user-password/none)")
-	rootCmd.PersistentFlags().StringVarP(&username, "username", "u", "noti", "Server API Auth User")
-	rootCmd.PersistentFlags().StringVarP(&password, "password", "p", RandomString(16), "Server API Auth Password")
-	rootCmd.PersistentFlags().StringVarP(&accessToken, "access-token", "t", RandomString(32), "Server API Auth AccessToken")
-	rootCmd.PersistentFlags().StringVarP(&botApi, "bot-api", "a", "https://api.telegram.org", "Telegram API Address")
-	rootCmd.PersistentFlags().StringVarP(&botToken, "bot-token", "s", "", "Telegram Bot Token")
-	rootCmd.PersistentFlags().Int64SliceVarP(&recipient, "recipient", "r", []int64{}, "Telegram Message Recipient")
+	if viper.GetString("listen") == "" {
+		viper.Set("listen", "0.0.0.0:8080")
+	}
+	if viper.GetString("access-token") == "" {
+		viper.Set("access-token", RandomString(32))
+	}
+	if viper.GetString("password") == "" {
+		viper.Set("password", RandomString(16))
+	}
 }
 
 func main() {
