@@ -5,6 +5,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/basicauth"
 	"github.com/gofiber/fiber/v2/utils"
+	"github.com/gofiber/keyauth/v2"
 	_ "github.com/mritd/logrus"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -57,20 +58,20 @@ var rootCmd = &cobra.Command{
 		go func() {
 			switch viper.GetString("auth-mode") {
 			case "none":
-			case "user-password":
+			case "basicauth":
 				app.Use(basicauth.New(basicauth.Config{
 					Users: map[string]string{
 						viper.GetString("username"): viper.GetString("password"),
 					},
 				}))
-			case "token", "access-token":
-				app.Use(func(c *fiber.Ctx) error {
-					if viper.GetString("access-token") != c.Get("X-Auth") {
-						c.Status(fiber.StatusForbidden)
-						return c.Send([]byte("403 Forbidden"))
-					}
-					return c.Next()
-				})
+			case "keyauth":
+				app.Use(keyauth.New(keyauth.Config{
+					KeyLookup:  "header:Authorization",
+					AuthScheme: "Bearer",
+					Validator: func(ctx *fiber.Ctx, s string) (bool, error) {
+						return s == viper.GetString("access-token"), nil
+					},
+				}))
 			default:
 				logrus.Fatalf("unsupported auth mode: %v", viper.GetString("auth-mode"))
 			}
@@ -156,10 +157,10 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.PersistentFlags().StringP("listen", "l", "", "Server Listen Address")
-	rootCmd.PersistentFlags().StringP("auth-mode", "m", "", "Server API Mode(access-token/user-password/none)")
-	rootCmd.PersistentFlags().StringP("username", "u", "", "Server API Auth User")
-	rootCmd.PersistentFlags().StringP("password", "p", "", "Server API Auth Password")
-	rootCmd.PersistentFlags().StringP("access-token", "t", "", "Server API Auth AccessToken")
+	rootCmd.PersistentFlags().StringP("auth-mode", "m", "", "Server API Auth Mode(basicauth/keyauth/none)")
+	rootCmd.PersistentFlags().StringP("username", "u", "", "Server API Basic Auth User")
+	rootCmd.PersistentFlags().StringP("password", "p", "", "Server API Basic Auth Password")
+	rootCmd.PersistentFlags().StringP("access-token", "t", "", "Server API AccessToken")
 	rootCmd.PersistentFlags().StringP("bot-api", "a", "https://api.telegram.org", "Telegram API Address")
 	rootCmd.PersistentFlags().StringP("bot-token", "s", "", "Telegram Bot Token")
 	rootCmd.PersistentFlags().StringP("recipient", "r", "", "Telegram Message Recipient")
@@ -180,8 +181,14 @@ func init() {
 	if viper.GetString("listen") == "" {
 		viper.Set("listen", "0.0.0.0:8080")
 	}
+	if viper.GetString("auth-mode") == "" {
+		viper.Set("auth-mode", "keyauth")
+	}
 	if viper.GetString("access-token") == "" {
 		viper.Set("access-token", RandomString(32))
+	}
+	if viper.GetString("username") == "" {
+		viper.Set("username", "noti")
 	}
 	if viper.GetString("password") == "" {
 		viper.Set("password", RandomString(16))
