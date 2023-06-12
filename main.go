@@ -78,10 +78,10 @@ var rootCmd = &cobra.Command{
 			app.Post("/message", func(c *fiber.Ctx) error {
 				for _, r := range recipient {
 					var err error
-					if c.FormValue("markdown") == "true" {
-						err = bot.SendMessage(c.FormValue("message"), r, true)
-					} else {
+					if c.FormValue("markdown") == "false" {
 						err = bot.SendMessage(c.FormValue("message"), r, false)
+					} else {
+						err = bot.SendMessage(c.FormValue("message"), r, true)
 					}
 					if err != nil {
 						logrus.Errorf("failed to send: [%d] %v", r, err)
