@@ -76,14 +76,11 @@ var rootCmd = &cobra.Command{
 				logrus.Fatalf("unsupported auth mode: %v", viper.GetString("auth-mode"))
 			}
 			app.Post("/message", func(c *fiber.Ctx) error {
+				markdown := c.FormValue("markdown") == "true"
+				silent := c.FormValue("silent") == "true"
+
 				for _, r := range recipient {
-					var err error
-					if c.FormValue("markdown") == "false" {
-						err = bot.SendMessage(c.FormValue("message"), r, false)
-					} else {
-						err = bot.SendMessage(c.FormValue("message"), r, true)
-					}
-					if err != nil {
+					if err := bot.SendMessage(c.FormValue("message"), r, markdown, silent); err != nil {
 						logrus.Errorf("failed to send: [%d] %v", r, err)
 						c.Status(fiber.StatusInternalServerError)
 						_ = c.Send([]byte(err.Error()))
@@ -92,6 +89,7 @@ var rootCmd = &cobra.Command{
 				return nil
 			})
 			app.Post("/file", func(c *fiber.Ctx) error {
+				silent := c.FormValue("silent") == "true"
 				fh, err := c.FormFile("file")
 				if err != nil {
 					logrus.Errorf("failed to get file from request: %v", err)
@@ -107,8 +105,9 @@ var rootCmd = &cobra.Command{
 					return err
 				}
 				defer func() { _ = f.Close() }()
+
 				for _, r := range recipient {
-					err = bot.SendFile(f, fh.Filename, utils.GetMIME(fh.Filename), "", r)
+					err = bot.SendFile(f, fh.Filename, utils.GetMIME(fh.Filename), "", r, silent)
 					if err != nil {
 						logrus.Errorf("failed to send: [%d] %v", r, err)
 						c.Status(fiber.StatusInternalServerError)
@@ -118,6 +117,7 @@ var rootCmd = &cobra.Command{
 				return nil
 			})
 			app.Post("/image", func(c *fiber.Ctx) error {
+				silent := c.FormValue("silent") == "true"
 				fh, err := c.FormFile("image")
 				if err != nil {
 					logrus.Errorf("failed to get image from request: %v", err)
@@ -133,8 +133,9 @@ var rootCmd = &cobra.Command{
 					return err
 				}
 				defer func() { _ = f.Close() }()
+
 				for _, r := range recipient {
-					err = bot.SendImage(f, "", r)
+					err = bot.SendImage(f, "", r, silent)
 					if err != nil {
 						logrus.Errorf("failed to send: [%d] %v", r, err)
 						c.Status(fiber.StatusInternalServerError)

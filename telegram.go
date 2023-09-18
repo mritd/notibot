@@ -23,8 +23,8 @@ func NewTelegram(api, token string) (*Telegram, error) {
 	return &Telegram{bot: bot}, nil
 }
 
-func (tg *Telegram) SendMessage(msg string, to int64, markdown bool) error {
-	opt := &tb.SendOptions{}
+func (tg *Telegram) SendMessage(msg string, to int64, markdown, silent bool) error {
+	opt := &tb.SendOptions{DisableNotification: silent}
 	if markdown {
 		opt.ParseMode = tb.ModeMarkdownV2
 	}
@@ -33,20 +33,20 @@ func (tg *Telegram) SendMessage(msg string, to int64, markdown bool) error {
 	return err
 }
 
-func (tg *Telegram) SendFile(file io.Reader, fileName, mime, caption string, to int64) error {
+func (tg *Telegram) SendFile(file io.Reader, fileName, mime, caption string, to int64, silent bool) error {
 	_, err := tg.bot.Send(tb.ChatID(to), &tb.Document{
 		File:     tb.File{FileReader: file},
 		Caption:  caption,
 		MIME:     mime,
 		FileName: fileName,
-	})
+	}, &tb.SendOptions{DisableNotification: silent})
 	return err
 }
 
-func (tg *Telegram) SendImage(image io.Reader, caption string, to int64) error {
+func (tg *Telegram) SendImage(image io.Reader, caption string, to int64, silent bool) error {
 	_, err := tg.bot.Send(tb.ChatID(to), &tb.Photo{
 		File:    tb.File{FileReader: image},
 		Caption: caption,
-	})
+	}, &tb.SendOptions{DisableNotification: silent})
 	return err
 }
