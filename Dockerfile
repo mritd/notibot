@@ -1,12 +1,26 @@
 FROM golang:1-alpine AS builder
 
+# default timezon
+# override it with `--build-arg TIMEZONE=xxxx`
+ARG TIMEZONE=Asia/Shanghai
+
+ENV TZ ${TIMEZONE}
+
 COPY . /go/src/github.com/mritd/notibot
 
 WORKDIR /go/src/github.com/mritd/notibot
 
 RUN set -ex \
-    && apk add gcc musl-dev \
-    && go install -trimpath -ldflags "-w -s"
+    && apk add gcc musl-dev git tzdata \
+    && ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime \
+    && echo ${TZ} > /etc/timezone \
+    && export version=$(git describe --tags --always) \
+    && export build_date=$(date '+%F %T') \
+    && export commit_hash=$(git rev-parse HEAD) \
+    && go install -trimpath -ldflags "-w -s \
+        -X \"main.version=${version}\" \
+        -X \"main.build=${build_date}\" \
+        -X \"main.commit=${commit_hash}\""
 
 FROM alpine
 

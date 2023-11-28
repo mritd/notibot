@@ -1,0 +1,123 @@
+version: '3'
+
+vars:
+  VERSION:
+    sh: git describe --tags --always
+  COMMIT_SHA:
+    sh: git rev-parse HEAD
+  BUILD_DATE:
+    sh: date '+%F %T'
+
+tasks:
+  clean:
+    desc: Clean Up Build Cache Files
+    cmds:
+      - rm -rf build
+  mkdir:
+    desc: Create Build Dir
+    cmds:
+      - mkdir -p build
+    status:
+      - test -d build
+  build-notibot:
+    desc: Build NotiBot
+    cmds:
+      - task: mkdir
+      - |
+        GOOS={{.GOOS}} GOARCH={{.GOARCH}} GOARM={{.GOARM}} GOAMD64={{.GOAMD64}} GOMIPS={{.GOMIPS}} \
+        go build -trimpath -o build/notibot-{{.GOOS}}-{{.GOARCH}}{{if .GOARM}}v{{.GOARM}}{{end}}{{if .GOAMD64}}-{{.GOAMD64}}{{end}} \
+          -ldflags "{{if not .DEBUG}}-w -s{{end}} \
+          -X 'main.version={{.VERSION}}' \
+          -X 'main.build={{.BUILD_DATE}}' \
+          -X 'main.commit={{.COMMIT_SHA}}'" \
+          {{if .DEBUG}}-gcflags "all=-N -l"{{end}}
+  linux-386:
+    desc: Build NotiBot(linux/386)
+    cmds:
+      - task: build-notibot
+        vars: {
+          PLATFORM: linux-386,
+          GOOS: linux,
+          GOARCH: 386
+        }
+  linux-amd64:
+    desc: Build NotiBot(linux/amd64)
+    cmds:
+      - task: build-notibot
+        vars: {
+          PLATFORM: linux-amd64,
+          GOOS: linux,
+          GOARCH: amd64
+        }
+  linux-amd64-v3:
+    desc: Build NotiBot(linux/amd64/v3)
+    cmds:
+      - task: build-notibot
+        vars: {
+          PLATFORM: linux-amd64,
+          GOOS: linux,
+          GOARCH: amd64,
+          GOAMD64: v3
+        }
+  linux-arm64:
+    desc: Build NotiBot(linux/arm64)
+    cmds:
+      - task: build-notibot
+        vars: {
+          PLATFORM: linux-arm64,
+          GOOS: linux,
+          GOARCH: arm64
+        }
+  linux-armv5:
+    desc: Build NotiBot(linux/armv5)
+    cmds:
+      - task: build-notibot
+        vars: {
+          PLATFORM: linux-armv5,
+          GOOS: linux,
+          GOARCH: arm,
+          GOARM: 5
+        }
+  linux-armv6:
+    desc: Build NotiBot(linux/armv6)
+    cmds:
+      - task: build-notibot
+        vars: {
+          PLATFORM: linux-armv6,
+          GOOS: linux,
+          GOARCH: arm,
+          GOARM: 6
+        }
+  linux-armv7:
+    desc: Build NotiBot(linux/armv7)
+    cmds:
+      - task: build-notibot
+        vars: {
+          PLATFORM: linux-armv7,
+          GOOS: linux,
+          GOARCH: arm,
+          GOARM: 7
+        }
+  default:
+    desc: Default Build Task
+    cmds:
+      - task: clean
+      - task: linux-386
+      - task: linux-amd64
+      - task: linux-amd64-v3
+      - task: linux-arm64
+      - task: linux-armv5
+      - task: linux-armv6
+      - task: linux-armv7
+  docker:
+    desc: Build Docker Image
+    cmds:
+      - docker build -t mritd/notibot:{{.VERSION}} . --load
+
+
+
+
+
+
+
+
