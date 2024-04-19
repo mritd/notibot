@@ -24,6 +24,7 @@ func NewTelegram(api, token string) (*Telegram, error) {
 
 	bot.Handle("/start", sendID)
 	bot.Handle("/id", sendID)
+	go bot.Start()
 
 	return &Telegram{bot: bot}, nil
 }
@@ -57,10 +58,9 @@ func (tg *Telegram) SendImage(image io.Reader, caption string, to int64, silent 
 }
 
 func sendID(c tb.Context) error {
-	if c.Chat() != nil {
-		_ = c.Reply(fmt.Sprintf("Current Group ID: `%d`", c.Chat().ID), &tb.SendOptions{ParseMode: tb.ModeMarkdownV2})
+	if c.Message().FromGroup() {
+		return c.Reply(fmt.Sprintf("Current Group ID: `%d`", c.Chat().ID), &tb.SendOptions{ParseMode: tb.ModeMarkdownV2})
 	} else {
-		_ = c.Reply(fmt.Sprintf("Your Telegram ID: `%d`", c.Sender().ID), &tb.SendOptions{ParseMode: tb.ModeMarkdownV2})
+		return c.Reply(fmt.Sprintf("Your Telegram ID: `%d`", c.Sender().ID), &tb.SendOptions{ParseMode: tb.ModeMarkdownV2})
 	}
-	return nil
 }
