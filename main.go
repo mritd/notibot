@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/basicauth"
-	"github.com/gofiber/fiber/v2/utils"
 	"github.com/gofiber/keyauth/v2"
 	_ "github.com/mritd/logrus"
 	"github.com/sirupsen/logrus"
@@ -15,6 +14,9 @@ import (
 	"strings"
 	"syscall"
 )
+
+var recipient []int64
+var telegram *Telegram
 
 var rootCmd = &cobra.Command{
 	Use:   "notibot",
@@ -30,7 +32,6 @@ var rootCmd = &cobra.Command{
 		logrus.Infof("NotiBot API Access Token: %s", viper.GetString("access-token"))
 		logrus.Infof("NotiBot Telegram Recipient: %v", viper.GetString("recipient"))
 
-		var recipient []int64
 		if viper.GetString("recipient") == "" {
 			logrus.Fatal("telegram recipient cannot be empty")
 		}
@@ -47,6 +48,7 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			logrus.Fatalf("failed to create telegram bot: %v", err)
 		}
+		telegram = bot
 
 		app := fiber.New(fiber.Config{
 			Prefork:       false,
@@ -75,75 +77,12 @@ var rootCmd = &cobra.Command{
 			default:
 				logrus.Fatalf("unsupported auth mode: %v", viper.GetString("auth-mode"))
 			}
-			app.Post("/message", func(c *fiber.Ctx) error {
-				markdown := c.FormValue("markdown") == "true"
-				silent := c.FormValue("silent") == "true"
 
-				for _, r := range recipient {
-					if err := bot.SendMessage(c.FormValue("message"), r, markdown, silent); err != nil {
-						logrus.Errorf("failed to send: [%d] %v", r, err)
-						c.Status(fiber.StatusInternalServerError)
-						_ = c.Send([]byte(err.Error()))
-					}
-				}
-				return nil
-			})
-			app.Post("/file", func(c *fiber.Ctx) error {
-				silent := c.FormValue("silent") == "true"
-				fh, err := c.FormFile("file")
-				if err != nil {
-					logrus.Errorf("failed to get file from request: %v", err)
-					c.Status(fiber.StatusBadRequest)
-					_ = c.Send([]byte(err.Error()))
-					return err
-				}
-				f, err := fh.Open()
-				if err != nil {
-					logrus.Errorf("failed to get file from request: %v", err)
-					c.Status(fiber.StatusInternalServerError)
-					_ = c.Send([]byte(err.Error()))
-					return err
-				}
-				defer func() { _ = f.Close() }()
+			app.Post("/message", handleMessage)
+			app.Post("/file", handleFile)
+			app.Post("/image", handleImage)
+			app.Post("/surveillance", handleSurveillanceStation)
 
-				for _, r := range recipient {
-					err = bot.SendFile(f, fh.Filename, utils.GetMIME(fh.Filename), "", r, silent)
-					if err != nil {
-						logrus.Errorf("failed to send: [%d] %v", r, err)
-						c.Status(fiber.StatusInternalServerError)
-						_ = c.Send([]byte(err.Error()))
-					}
-				}
-				return nil
-			})
-			app.Post("/image", func(c *fiber.Ctx) error {
-				silent := c.FormValue("silent") == "true"
-				fh, err := c.FormFile("image")
-				if err != nil {
-					logrus.Errorf("failed to get image from request: %v", err)
-					c.Status(fiber.StatusBadRequest)
-					_ = c.Send([]byte(err.Error()))
-					return err
-				}
-				f, err := fh.Open()
-				if err != nil {
-					logrus.Errorf("failed to get image from request: %v", err)
-					c.Status(fiber.StatusInternalServerError)
-					_ = c.Send([]byte(err.Error()))
-					return err
-				}
-				defer func() { _ = f.Close() }()
-
-				for _, r := range recipient {
-					err = bot.SendImage(f, "", r, silent)
-					if err != nil {
-						logrus.Errorf("failed to send: [%d] %v", r, err)
-						c.Status(fiber.StatusInternalServerError)
-						_ = c.Send([]byte(err.Error()))
-					}
-				}
-				return nil
-			})
 			if err := app.Listen(viper.GetString("listen")); err != nil {
 				logrus.Fatal(err)
 			}

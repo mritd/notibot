@@ -1,66 +1,89 @@
 package main
 
 import (
-	"fmt"
+	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegoutil"
 	"io"
-	"time"
-
-	tb "gopkg.in/telebot.v3"
 )
 
+type File struct {
+	name string
+	file io.Reader
+}
+
+func (f *File) Read(p []byte) (n int, err error) {
+	return f.file.Read(p)
+}
+
+func (f *File) Name() string {
+	return f.name
+}
+
 type Telegram struct {
-	bot *tb.Bot
+	bot *telego.Bot
 }
 
 func NewTelegram(api, token string) (*Telegram, error) {
-	bot, err := tb.NewBot(tb.Settings{
-		URL:    api,
-		Token:  token,
-		Poller: &tb.LongPoller{Timeout: 5 * time.Second},
-	})
+	var options []telego.BotOption
+	if api != "" {
+		options = append(options, telego.WithAPIServer(api))
+	}
+
+	bot, err := telego.NewBot(token, options...)
 	if err != nil {
 		return nil, err
 	}
-
-	bot.Handle("/start", sendID)
-	bot.Handle("/id", sendID)
-	go bot.Start()
 
 	return &Telegram{bot: bot}, nil
 }
 
 func (tg *Telegram) SendMessage(msg string, to int64, markdown, silent bool) error {
-	opt := &tb.SendOptions{DisableNotification: silent}
+	var parseMode string
 	if markdown {
-		opt.ParseMode = tb.ModeMarkdownV2
+		parseMode = telego.ModeMarkdownV2
 	}
 
-	_, err := tg.bot.Send(tb.ChatID(to), msg, opt)
+	_, err := tg.bot.SendMessage(&telego.SendMessageParams{
+		ChatID:    telego.ChatID{ID: to},
+		Text:      msg,
+		ParseMode: parseMode,
+	})
 	return err
 }
 
-func (tg *Telegram) SendFile(file io.Reader, fileName, mime, caption string, to int64, silent bool) error {
-	_, err := tg.bot.Send(tb.ChatID(to), &tb.Document{
-		File:     tb.File{FileReader: file},
-		Caption:  caption,
-		MIME:     mime,
-		FileName: fileName,
-	}, &tb.SendOptions{DisableNotification: silent})
+func (tg *Telegram) SendDocument(file io.Reader, fileName, caption string, to int64, silent bool) error {
+	_, err := tg.bot.SendDocument(&telego.SendDocumentParams{
+		ChatID: telego.ChatID{ID: to},
+		Document: telego.InputFile{
+			File: &File{
+				name: fileName,
+				file: file,
+			},
+		},
+		Caption:             caption,
+		DisableNotification: silent,
+	})
 	return err
 }
 
-func (tg *Telegram) SendImage(image io.Reader, caption string, to int64, silent bool) error {
-	_, err := tg.bot.Send(tb.ChatID(to), &tb.Photo{
-		File:    tb.File{FileReader: image},
-		Caption: caption,
-	}, &tb.SendOptions{DisableNotification: silent})
+func (tg *Telegram) SendPhoto(image io.Reader, caption string, to int64, silent bool) error {
+	_, err := tg.bot.SendPhoto(&telego.SendPhotoParams{
+		ChatID: telego.ChatID{ID: to},
+		Photo: telego.InputFile{
+			File: &File{file: image},
+		},
+		Caption:             caption,
+		DisableNotification: silent,
+	})
 	return err
 }
 
-func sendID(c tb.Context) error {
-	if c.Message().FromGroup() {
-		return c.Reply(fmt.Sprintf("Current Group ID: `%d`", c.Chat().ID), &tb.SendOptions{ParseMode: tb.ModeMarkdownV2})
-	} else {
-		return c.Reply(fmt.Sprintf("Your Telegram ID: `%d`", c.Sender().ID), &tb.SendOptions{ParseMode: tb.ModeMarkdownV2})
-	}
+func (tg *Telegram) SendPhotoWithURL(imageURL, caption string, to int64, silent bool) error {
+	_, err := tg.bot.SendPhoto(&telego.SendPhotoParams{
+		ChatID:              telego.ChatID{ID: to},
+		Photo:               telegoutil.FileFromURL(imageURL),
+		Caption:             caption,
+		DisableNotification: silent,
+	})
+	return err
 }
