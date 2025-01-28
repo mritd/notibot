@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
 	"github.com/gofiber/fiber/v2"
+	"github.com/mymmrac/telego/telegoutil"
 	"github.com/sirupsen/logrus"
 )
 
@@ -83,11 +86,20 @@ func handleSurveillanceStation(c *fiber.Ctx) error {
 		return err
 	}
 
+	if param.Photo == "" {
+		return fmt.Errorf("photo is empty")
+	}
+
+	bs, err := telegoutil.DownloadFile(param.Photo)
+	if err != nil {
+		return err
+	}
+
 	if param.ChatId != 0 {
-		return telegram.SendPhotoWithURL(param.Photo, param.Caption, param.ChatId, param.Silent)
+		return telegram.SendPhoto(bytes.NewReader(bs), param.Caption, param.ChatId, param.Silent)
 	} else {
 		for _, r := range recipient {
-			err := telegram.SendPhotoWithURL(param.Photo, param.Caption, param.ChatId, param.Silent)
+			err := telegram.SendPhoto(bytes.NewReader(bs), param.Caption, param.ChatId, param.Silent)
 			if err != nil {
 				logrus.Errorf("failed to send: [%d] %v", r, err)
 				c.Status(fiber.StatusInternalServerError)
